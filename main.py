@@ -1,4 +1,3 @@
-from asyncio.windows_events import NULL
 import pygame
 pygame.init()
 
@@ -18,26 +17,24 @@ BOID_COLOR = (128, 56, 200)
 '''Object'''
 class Object():
 	def __init__(self):
-		self.x = 0
-		self.y = 0
-		self.height = 0
-		self.width = 0
+		self.x = 100
+		self.y = 100
+		self.height = 30
+		self.width = 20
+		self.rotation = 0
 		self.color = (0, 0, 0)
-		self.polygon = [(100,100), (300,100), (150,300)]
+		self.speed = 10
 
 '''Move object'''
 class Move_object():
-	def __init__(self):
-		self.speed = 0
-		
-	def move(self, left, right):
-		self.x += -left * time_passed
-		self.x += right * time_passed
+	def move(self):
+		self.x += self.speed * time_passed
+		self.y += self.speed * time_passed
 
 '''Draw object'''
 class Draw_object():
 	def draw(self):
-		self.box = pygame.draw.polygon(screen, self.color, self.polygon)
+		self.box = pygame.draw.polygon(screen, self.color, [(self.x, self.y), (self.x - (self.width / 2), self.y + self.height), (self.x + (self.width / 2), self.y + self.height)])
 
 '''Boid'''
 class Boid(Object, Move_object, Draw_object):
@@ -45,8 +42,8 @@ class Boid(Object, Move_object, Draw_object):
 		super().__init__()
 		self.color = BOID_COLOR
 
-boid1 = Boid()
 
+boid1 = Boid()
 
 # Game loop
 while True:
@@ -66,6 +63,11 @@ while True:
 
 	# Set background color
 	screen.fill(BACKGROUND_COLOR)
+
+	# Move boid
+	boid1.move()
+
+	# Draw boid
 	boid1.draw()
 
 	# Update display too show new frame
