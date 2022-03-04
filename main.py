@@ -1,6 +1,5 @@
 import random
 import math
-from turtle import distance
 import pygame
 pygame.init()
 
@@ -109,7 +108,6 @@ while True:
 			boid.move_to_target(boid_target.x, boid_target.y)
 		
 		boid.avoid_boids()
-		boid.direction_to_object(boid_target)
 		boid.move()
 		boid.draw()
 
