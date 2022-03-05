@@ -1,3 +1,4 @@
+import vector
 import random
 import math
 import pygame
@@ -18,7 +19,7 @@ BOID_COLOR = (128, 56, 200)
 
 '''Object'''
 class Object():
-	def __init__(self, x, y, radius, speed, color):
+	def __init__(self, x: float, y: float, radius, speed, color):
 		self.x = x
 		self.y = y
 		self.radius = radius
@@ -70,7 +71,7 @@ class Boid(Object, Move_object, Draw_object, pygame.math.Vector2):
 # Create boids
 boids = []
 i = 0
-while i < 10:
+while i < 1:
 	boids.append(Boid(200 + 400 * random.random(), 200 + 400 * random.random(), 5, 200, BOID_COLOR))
 	i += 1
 
@@ -107,6 +108,8 @@ while True:
 		if boid.distance_to_object(boid_target) < 200:
 			boid.move_to_target(boid_target.x, boid_target.y)
 		
+		print("direction: ", boid.direction_to_object(boid_target))
+		print("dot: ", pygame.math.Vector2.dot(boid, boid_target))
 		boid.avoid_boids()
 		boid.move()
 		boid.draw()
