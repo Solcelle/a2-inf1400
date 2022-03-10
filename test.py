@@ -1,24 +1,11 @@
-from tkinter import S
-from unicodedata import is_normalized
 import vector
+import settings
 import random
-import math
 import pygame
 pygame.init()
 
-# Create screen
-SCREEN_X = 1024
-SCREEN_Y = 648
-screen = pygame.display.set_mode((SCREEN_X, SCREEN_Y), 0, 32)
-
-GAME_TICK = 60
+screen = pygame.display.set_mode((settings.SCREEN_X, settings.SCREEN_Y), 0, 32)
 clock = pygame.time.Clock()
-
-# Game coloure
-BACKGROUND_COLOR = (20, 22, 30)
-BOID_COLOR = (128, 56, 200)
-
-
 
 '''Object'''
 class Object():
@@ -40,109 +27,176 @@ class Draw_object():
 	def draw(self):
 		self.box = pygame.draw.circle(screen, self.color, (self.x, self.y), self.radius)
 
-view_dist = 100
-avoid_bias = 1
-follow_bias = 0.02
-center_bias = 0.02
-
-
 '''Boid'''
 class Boid(Object, Move_object, Draw_object):
 	def __init__(self, x, y, radius, speed, color):
 		super().__init__(x, y, radius, speed, color)
 		self.vector_pos = vector.Vector2(self.x, self.y)
 		self.vector_vel = vector.random_vector()
-		self.return_speed = self.speed / 8000
+		self.return_speed = self.speed / 5000
 	
-	def update_boid(self):
+	def update(self):
+		average_vel = vector.Vector2(0, 0)
+		center_pos = vector.Vector2(0, 0)
+
+		# Gives boid random movement
 		random_vector = vector.random_vector()
-		self.vector_vel += random_vector / 4
+		self.vector_vel += random_vector / 4	
+
+		# Updates boids position vector
 		self.vector_pos.x = self.x
 		self.vector_pos.y = self.y
-		
-		center_pos = vector.Vector2(0, 0)
-		average_vel = vector.Vector2(0, 0)
-		for boid in boids:
-			if self is not boid:
-				dist = vector.dist(self.vector_pos, boid.vector_pos)
-				if dist < view_dist:
-					angle_pos = vector.direction_to(self.vector_pos, boid.vector_pos)
-					angle_vel = vector.direction_to(self.vector_vel, boid.vector_vel)
 
-					self.avoid_boid(angle_pos, dist)
-					average_vel.x += angle_vel[0]
-					average_vel.y += angle_vel[1]
-					center_pos.x += angle_pos[0]
-					center_pos.y += angle_pos[1]
+		# Loops thru all boids
+		for other in boids:
+			if self is not other:	# Excludes itself
+				dist = vector.dist(self.vector_pos, other.vector_pos)	# Checks distance to other
 
-		self.follow_boid(average_vel)
-		self.center_boid(center_pos)
-			
+				# Checks if other is within view	
+				if dist < settings.view_dist:
+					# Checks direction to others positon and velocity
+					dir_pos = vector.direction_to(self.vector_pos, other.vector_pos)
+					dir_vel = vector.direction_to(self.vector_vel, other.vector_vel)
+
+					# Updates boids velocity
+					self.avoid_boid(dir_pos, dist, settings.avoid_bias)	# Avoid boid
+					average_vel.x += dir_vel[0]
+					average_vel.y += dir_vel[1]
+					center_pos.x += dir_pos[0]
+					center_pos.y += dir_pos[1]
+
+		for hoik in hoiks:
+			dist = vector.dist(self.vector_pos, hoik.vector_pos)
+			if dist < settings.view_dist:
+				dir_pos = vector.direction_to(self.vector_pos, other.vector_pos)
+				self.avoid_hoik(dir_pos, settings.avoid_bias)
+
+				if dist < 4:
+					boids.remove
+
+		# Makes boids avoid obstacles
+		for obst in obstacles:
+			dist = vector.dist(self.vector_pos, obst.vector_pos)
+			if dist < settings.view_dist:
+				dir_pos = vector.direction_to(self.vector_pos, obst.vector_pos)
+				self.avoid_hoik(dir_pos, settings.avoid_bias * 0.2)
+
+		self.follow_object(average_vel, settings.follow_bias)		# Follow boids average direction
+		self.follow_object(center_pos, settings.center_bias)		# Follow boids center position
+		self.out_of_bounds()										# Return after out of screen
 		self.move()
 		self.draw()
-		self.out_of_bounds()
 
-	# Makes boid avoid nearby boid
-	def avoid_boid(self, angle, dist):
-		self.vector_vel.x -= (angle[0] / dist) * avoid_bias
-		self.vector_vel.y -= (angle[1] / dist) * avoid_bias
+	# Makes boid avoid direction
+	def avoid_boid(self, dir, dist, bias):
+		self.vector_vel.x -= (dir[0] / dist) * bias
+		self.vector_vel.y -= (dir[1] / dist) * bias
+		self.vector_vel = vector.normalize(self.vector_vel)
+
+	# Makes boid avoid hoik
+	def avoid_hoik(self, dir, bias):
+		self.vector_vel.x -= dir[0] * bias
+		self.vector_vel.y -= dir[1] * bias
 		self.vector_vel = vector.normalize(self.vector_vel)
 	
-	# Makes boid follow nearby boid
-	def follow_boid(self, average_val):
-		self.vector_vel.x += average_val.x * follow_bias
-		self.vector_vel.y += average_val.y * follow_bias
+	# Makes boid follow direction
+	def follow_object(self, dir, bias):
+		dir = vector.normalize(dir)
+		self.vector_vel.x += dir.x * bias
+		self.vector_vel.y += dir.y * bias
 		self.vector_vel = vector.normalize(self.vector_vel)
-	
-	def center_boid(self, center_pos):
-		self.vector_vel.x += center_pos.x * center_bias
-		self.vector_vel.y += center_pos.y * center_bias
-		self.vector_vel = vector.normalize(self.vector_vel)
-	
 
 	# Makes boids return if they leave boundaries of screen
 	def out_of_bounds(self):
 		if self.x < 0:
 			self.vector_vel.x += self.return_speed
-		if self.x > SCREEN_X:
+		if self.x > settings.SCREEN_X:
 			self.vector_vel.x -= self.return_speed
 		if self.y < 0:
 			self.vector_vel.y += self.return_speed
-		if self.y > SCREEN_Y:
+		if self.y > settings.SCREEN_Y:
 			self.vector_vel.y -= self.return_speed
 		self.vector_vel = vector.normalize(self.vector_vel)
 
-# Create boids
-boids = []
-i = 0
-while i < 100:
-	boids.append(Boid(SCREEN_X * random.random(), SCREEN_Y * random.random(), 5, 300, BOID_COLOR))
-	i += 1
+'''Hoik'''
+class Hoik(Boid):
+	def __init__(self, x, y, radius, speed, color):
+		super().__init__(x, y, radius, speed, color)
 
-#boids.append(Boid(SCREEN_X * random.random(), SCREEN_Y * random.random(), 50, 300, [255, 0, 0]))
+	def update(self):
+		# Gives hoik random movement
+		random_vector = vector.random_vector()
+		self.vector_vel += random_vector / 4	
+
+		self.vector_pos.x = self.x
+		self.vector_pos.y = self.y
+
+		self.out_of_bounds()
+		self.move
+		self.draw()
+		
+'''Obstacles'''
+class Obstacle(Object, Draw_object):
+	def __init__(self, x, y, radius, speed, color):
+		super().__init__(x, y, radius, speed, color)
+		self.vector_pos = vector.Vector2(self.x, self.y)
+
+# Create boids
+i = 0
+boids, hoiks, obstacles = [], [], []
+place_boid, place_hoik, place_obstacle = False, False, False
+while i < settings.BOID_AMOUNT:
+	boids.append(Boid(settings.SCREEN_X * random.random(), settings.SCREEN_Y * random.random(), settings.BOID_SIZE, settings.BOID_SPEED, settings.BOID_COLOR))
+	i += 1
 
 # Game loop
 while True:
 	# Check for events
 	events = pygame.event.get()
 	for event in events:
+		# Quits game if window is closed
 		if event.type == pygame.QUIT:
 			pygame.quit()
 			exit()
 		if event.type == pygame.KEYDOWN:
+			# Quit game with ESC
 			if event.key == pygame.K_ESCAPE:
 				pygame.quit()
 				exit()
+			# Selects which object to spawn based on button pressed
+			if event.key == pygame.K_b:
+				place_boid, place_hoik, place_obstacle = True, False, False
+			if event.key == pygame.K_h:
+				place_boid, place_hoik, place_obstacle = False, True, False
+			if event.key == pygame.K_o:
+				place_boid, place_hoik, place_obstacle = False, False, True
+				
+		# Spawn object with mousepress
+		if event.type == pygame.MOUSEBUTTONUP:
+			mouse_pos = pygame.mouse.get_pos()
+			# Spawn Boid
+			if place_boid:
+				boids.append(Boid(mouse_pos[0], mouse_pos[1], settings.BOID_SIZE, settings.BOID_SPEED, settings.BOID_COLOR))
+			# Spawn Hoik
+			if place_hoik:
+				hoiks.append(Hoik(mouse_pos[0], mouse_pos[1], settings.HOIK_SIZE, settings.HOIK_SPEED, settings.HOIK_COLOR))
+			# Spawn obstacle
+			if place_obstacle:
+				obstacles.append(Obstacle(mouse_pos[0], mouse_pos[1], settings.OBSTACLE_SIZE, 0, settings.OBSTACLE_COLOR))
 
 	# Sets amount of updates per second
-	time_passed = clock.tick(GAME_TICK) / 1000.0
+	time_passed = clock.tick(settings.GAME_TICK) / 1000.0
 
-	# Set background color
-	screen.fill(BACKGROUND_COLOR)
+	# Set background colour
+	screen.fill(settings.BACKGROUND_COLOR)
 
-	# Update boids direction
-	for self in boids:
-		self.update_boid()
+	# Update boids, hoiks and obstacles
+	for boid in boids:
+		boid.update()
+	for hoik in hoiks:
+		hoik.update()
+	for obst in obstacles:
+		obst.draw()
 
 	# Update display too show new frame
 	pygame.display.update()
