@@ -2,10 +2,6 @@ import vector
 import settings
 import random
 import pygame
-pygame.init()
-
-screen = pygame.display.set_mode((settings.SCREEN_X, settings.SCREEN_Y), 0, 32)
-clock = pygame.time.Clock()
 
 '''Object'''
 class Object():
@@ -25,7 +21,7 @@ class Move_object():
 '''Draw object'''
 class Draw_object():
 	def draw(self):
-		self.box = pygame.draw.circle(screen, self.color, (self.x, self.y), self.radius)
+		self.box = pygame.draw.circle(settings.screen, self.color, (self.x, self.y), self.radius)
 
 '''Boid'''
 class Boid(Object, Move_object, Draw_object):
@@ -33,7 +29,7 @@ class Boid(Object, Move_object, Draw_object):
 		super().__init__(x, y, radius, speed, color)
 		self.vector_pos = vector.Vector2(self.x, self.y)
 		self.vector_vel = vector.random_vector()
-		self.return_speed = self.speed / 5000
+		self.return_speed = self.speed / 4000
 	
 	def update(self):
 		average_vel = vector.Vector2(0, 0)
@@ -47,80 +43,88 @@ class Boid(Object, Move_object, Draw_object):
 		self.vector_pos.x = self.x
 		self.vector_pos.y = self.y
 
-		# Loops thru all boids and hoiks
+		# Loops through boids
 		for other in boids:
 			if self is not other:	# Excludes itself
 				dist = vector.dist(self.vector_pos, other.vector_pos)	# Checks distance to other
 
-				# Checks if other is within view	
+				# Checks if boid is within view	
 				if dist < settings.view_dist:
+					# Checks direction to boids positon and velocity
 					dir_pos = vector.direction_to(self.vector_pos, other.vector_pos)
+					dir_vel = vector.direction_to(self.vector_vel, other.vector_vel)
 
-					# If self is boid
-					if not isinstance(self, Hoik):
-						# If other is boid
-						if isinstance(other, self.__class__):	
-							# Checks direction to others positon and velocity
-							dir_vel = vector.direction_to(self.vector_vel, other.vector_vel)
-							self.avoid_boid(dir_pos, dist, settings.avoid_bias)	# Avoid boid
-							# Updates boids velocity
-							average_vel.x += dir_vel[0]
-							average_vel.y += dir_vel[1]
-							center_pos.x += dir_pos[0]
-							center_pos.y += dir_pos[1]
-						# If other is hoik
-						else:
-							print("here")
-							self.avoid_hoik(dir_pos, settings.avoid_bias)
+					# Avoid boid
+					self.avoid_boid(dir_pos, dist, settings.avoid_bias)
 
-					# If self is hoik
-					else:
-						# If other is hoik
-						if isinstance(other, Hoik):
-							# Updates hoiks velocity
-							
-							self.avoid_hoik(dir_pos, settings.avoid_bias)
-						# If other is boid
-						else:
-							# Updates 
-							center_pos.x += dir_pos[0]
-							center_pos.y += dir_pos[1]
-							if dist < 4:
-								boids.remove
+					# Adds together boids average direction 
+					average_vel.x += dir_vel[0]
+					average_vel.y += dir_vel[1]
 
-		# Makes boids avoid obstacles
+					# Adds together boids average position
+					center_pos.x += dir_pos[0]
+					center_pos.y += dir_pos[1]
+
+		# Loops through hoiks
+		for hoik in hoiks:
+			# Checks distance between boid and hoik
+			dist = vector.dist(self.vector_pos, hoik.vector_pos)
+
+			# Check if boid is within view
+			if dist < settings.view_dist * 2:
+				# Check direction between boid and hoik
+				dir_pos = vector.direction_to(self.vector_pos, hoik.vector_pos)
+
+				# Makes hoik follow boid
+				boid_pos = vector.Vector2(0, 0)
+				boid_pos.x -= dir_pos[0]
+				boid_pos.y -= dir_pos[1]
+				hoik.follow_direction(boid_pos, settings.follow_bias)
+
+				# Check if hoik is within view
+				if dist < settings.view_dist:
+					# Make boid avoid hoik
+					self.avoid_hoik(dir_pos, settings.avoid_bias)
+
+					# Removes boid if caught by hoik
+					if dist < 10:
+						boids.remove(self)
+			
+		# Loops thru obstacles
 		for obst in obstacles:
+			# Checks distance between boid and obstacle
 			dist = vector.dist(self.vector_pos, obst.vector_pos)
+			# Avoid obstacle if within view
 			if dist < settings.view_dist:
 				dir_pos = vector.direction_to(self.vector_pos, obst.vector_pos)
 				self.avoid_hoik(dir_pos, settings.avoid_bias * 0.2)
 
-		self.follow_object(average_vel, settings.follow_bias)		# Follow boids average direction
-		self.follow_object(center_pos, settings.center_bias)		# Follow boids center position
-		self.out_of_bounds()										# Return after out of screen
-		self.move()
-		self.draw()
+		self.follow_direction(average_vel, settings.follow_bias)	# Follow boids average direction
+		self.follow_direction(center_pos, settings.center_bias)		# Follow boids center position
+		self.out_of_bounds()										# Return boid after out of screen
+		self.move()													# Update boids position
+		self.draw()													# Draw boid
 
-	# Makes boid avoid direction
+	# Makes boid avoid other boid
 	def avoid_boid(self, dir, dist, bias):
-		self.vector_vel.x -= (dir[0] / dist) * bias
+		self.vector_vel.x -= (dir[0] / dist) * bias				# Updates selfs velocity
 		self.vector_vel.y -= (dir[1] / dist) * bias
-		self.vector_vel = vector.normalize(self.vector_vel)
+		self.vector_vel = vector.normalize(self.vector_vel)		# Normalizes velocity vector
 
 	# Makes boid avoid hoik
 	def avoid_hoik(self, dir, bias):
-		self.vector_vel.x -= dir[0] * bias
+		self.vector_vel.x -= dir[0] * bias						# Updates selfs velocity
 		self.vector_vel.y -= dir[1] * bias
-		self.vector_vel = vector.normalize(self.vector_vel)
+		self.vector_vel = vector.normalize(self.vector_vel)		# Normalizes velocity vector
 	
-	# Makes boid follow direction
-	def follow_object(self, dir, bias):
-		dir = vector.normalize(dir)
-		self.vector_vel.x += dir.x * bias
+	# Makes boid follow a direction
+	def follow_direction(self, dir, bias):
+		dir = vector.normalize(dir)								# Normalizes direction vector
+		self.vector_vel.x += dir.x * bias						# Updates selfs velocity
 		self.vector_vel.y += dir.y * bias
-		self.vector_vel = vector.normalize(self.vector_vel)
+		self.vector_vel = vector.normalize(self.vector_vel)		# Normalizes velocity vector
 
-	# Makes boids return if they leave boundaries of screen
+	# Makes boid return if they leave boundaries of screen
 	def out_of_bounds(self):
 		if self.x < 0:
 			self.vector_vel.x += self.return_speed
@@ -136,6 +140,19 @@ class Boid(Object, Move_object, Draw_object):
 class Hoik(Boid):
 	def __init__(self, x, y, radius, speed, color):
 		super().__init__(x, y, radius, speed, color)
+
+	def update(self):
+		# Gives hoik random movement
+		random_vector = vector.random_vector()
+		self.vector_vel += random_vector / 4	
+
+		# Updates position vector
+		self.vector_pos.x = self.x
+		self.vector_pos.y = self.y
+
+		self.out_of_bounds()	# Retruns hoik if outside of screen
+		self.move()				# Update Hoiks position
+		self.draw()				# Draw hoik on screen
 		
 '''Obstacles'''
 class Obstacle(Object, Draw_object):
@@ -165,15 +182,15 @@ while True:
 			if event.key == pygame.K_ESCAPE:
 				pygame.quit()
 				exit()
-			# Selects which object to spawn based on button pressed
-			if event.key == pygame.K_b:
+			# Selects which object to be spawn based on button pressed
+			if event.key == pygame.K_b:		# Select boid with b
 				place_boid, place_hoik, place_obstacle = True, False, False
-			if event.key == pygame.K_h:
+			if event.key == pygame.K_h:		# Select hoik with h
 				place_boid, place_hoik, place_obstacle = False, True, False
-			if event.key == pygame.K_o:
+			if event.key == pygame.K_o:		# Select obstacle with o
 				place_boid, place_hoik, place_obstacle = False, False, True
 				
-		# Spawn object with mousepress
+		# Spawn object on mousepress
 		if event.type == pygame.MOUSEBUTTONUP:
 			mouse_pos = pygame.mouse.get_pos()
 			# Spawn Boid
@@ -187,10 +204,10 @@ while True:
 				obstacles.append(Obstacle(mouse_pos[0], mouse_pos[1], settings.OBSTACLE_SIZE, 0, settings.OBSTACLE_COLOR))
 
 	# Sets amount of updates per second
-	time_passed = clock.tick(settings.GAME_TICK) / 1000.0
+	time_passed = settings.clock.tick(settings.GAME_TICK) / 1000.0
 
 	# Set background colour
-	screen.fill(settings.BACKGROUND_COLOR)
+	settings.screen.fill(settings.BACKGROUND_COLOR)
 
 	# Update boids, hoiks and obstacles
 	for boid in boids:
